@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: DownloadManagement
+  datasource:
+    url: jdbc:mysql://localhost:3306/downloadmgmt?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: downloadmgmt
+    password: KzNXpRdJBKntaWeS
+  jpa:
+    hibernate:
+      ddl-auto: update  # 生产环境建议改为 validate 或 none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false  # 生产环境建议关闭
+        dialect: org.hibernate.dialect.MySQLDialect
+    show-sql: false  # 生产环境建议关闭
+    generate-ddl: true
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+server:
+  port: 8080  # 可选，默认8080
+
+app:
+  server:
+    id: server-1  # 多服务器部署时，每台服务器设置不同的ID
+  storage:
+    location: /data/uploads  # 确保目录存在且有写权限
+  download:
+    rateLimit:
+      perSecond: 5  # 每秒下载次数限制
+    refererWhitelist:  # 防盗链白名单，多个用逗号分隔，留空则不检查
+  ip:
+    rateLimit:
+      perMinute: 60  # 每分钟访问次数限制
+    concurrentLimit: 10  # 并发连接数限制
+    downloadRateLimitKB: 1024  # 下载速率限制（KB/s）
+    autoBanOnExceed: true  # 超过限制是否自动封禁
+    autoBanDurationMinutes: 60  # 自动封禁时长（分钟）
+
+logging:
+  level:
+    org.springframework.security: warn
+    org.springframework.web: info
+    top.hanlin.downloadmanagement: info
+  file:
+    name: /data/logs/download-management.log  # 可选，日志文件路径
+    max-size: 10MB
+    max-history: 30
+

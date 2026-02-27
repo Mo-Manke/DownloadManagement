@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>个人资料 - 安装包管理系统</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<!-- 导航栏 -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/admin" class="navbar-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      APK管理
+    </a>
+    <button class="navbar-toggle" onclick="toggleMenu()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+    <div class="navbar-menu" id="navMenu">
+      <a href="/admin">安装包管理</a>
+      <a href="/dashboard">仪表盘</a>
+      <a href="/admin/ip">IP控制</a>
+      <a href="/profile" class="active">个人资料</a>
+      <span th:if="${isSuperAdmin}">
+        <a href="/admin/users">管理员管理</a>
+        <a href="/admin/requests">审批请求</a>
+      </span>
+    </div>
+    <div class="navbar-user" id="navUser">
+      <div class="navbar-user-info">
+        <span class="avatar" th:text="${#strings.substring(username, 0, 1).toUpperCase()}">A</span>
+        <span th:text="${username}">admin</span>
+      </div>
+      <a href="/logout" class="btn-logout">退出登录</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container" style="max-width:800px;">
+  <div class="page-header">
+    <h1>个人资料</h1>
+    <p>管理您的账户信息和安全设置</p>
+  </div>
+
+  <!-- 用户信息卡片 -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:20px;padding:20px;background:linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);border-radius:var(--radius);color:#fff;margin-bottom:24px;">
+        <div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;" th:text="${#strings.substring(me.username, 0, 1).toUpperCase()}">A</div>
+        <div>
+          <h2 style="margin:0 0 4px;font-size:24px;font-weight:700;" th:text="${me.username}">admin</h2>
+          <span class="badge" style="background:rgba(255,255,255,0.2);color:#fff;" th:text="${me.role}">ADMIN</span>
+        </div>
+      </div>
+      
+      <!-- 修改密码 -->
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          修改密码
+        </h3>
+        <form method="post" action="/profile/password" id="passwordForm" onsubmit="return confirmPassword()">
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <input type="password" name="password" class="form-control" placeholder="输入新密码（至少6位）" required minlength="6" />
+            </div>
+            <button type="submit" class="btn btn-primary">确认修改</button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- 修改用户名 - 超级管理员 -->
+      <div th:if="${isSuperAdmin}" style="padding-top:24px;border-top:1px solid var(--border);">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          修改用户名
+        </h3>
+        <form method="post" action="/profile/username" id="usernameForm" onsubmit="return confirmUsername()">
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <input type="text" name="username" class="form-control" th:value="${me.username}" required minlength="3" />
+            </div>
+            <button type="submit" class="btn btn-primary">确认修改</button>
+          </div>
+          <p style="margin-top:8px;color:var(--secondary);font-size:13px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align:middle;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            作为超级管理员，您可以直接修改用户名
+          </p>
+        </form>
+      </div>
+      
+      <!-- 修改用户名 - 普通管理员 -->
+      <div th:unless="${isSuperAdmin}" style="padding-top:24px;border-top:1px solid var(--border);">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          修改用户名
+        </h3>
+        <form method="post" action="/profile/username">
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <input type="text" name="username" class="form-control" placeholder="输入新用户名" required minlength="3" />
+            </div>
+            <button type="submit" class="btn btn-primary">提交申请</button>
+          </div>
+          <p style="margin-top:8px;color:var(--secondary);font-size:13px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align:middle;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            普通管理员修改用户名需要超级管理员审批
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleMenu() {
+  document.getElementById('navMenu').classList.toggle('active');
+  document.getElementById('navUser').classList.toggle('active');
+}
+
+function confirmPassword(){
+  const pwd = document.querySelector('#passwordForm input[name=password]').value;
+  if (!confirm('确认修改密码？修改后需要重新登录。')) return false;
+  if (pwd.length < 6) { alert('密码长度至少6位'); return false; }
+  return true;
+}
+
+function confirmUsername(){
+  const newName = document.querySelector('#usernameForm input[name=username]').value;
+  if (!confirm('确认修改用户名？此操作不可逆，请谨慎操作。')) return false;
+  if (newName.length < 3) { alert('用户名长度至少3位'); return false; }
+  return true;
+}
+</script>
+</body>
+</html>

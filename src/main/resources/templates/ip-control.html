@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IP控制管理 - 安装包管理系统</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .chip { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:500; }
+        .manual { background:#dbeafe; color:#1e40af; }
+        .auto { background:#fef3c7; color:#92400e; }
+        .on { background:#dcfce7; color:#166534; }
+        .off { background:#fee2e2; color:#991b1b; }
+    </style>
+<script src="/js/vue.js"></script>
+</head>
+<body>
+<!-- 导航栏 -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/admin" class="navbar-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      APK管理
+    </a>
+    <button class="navbar-toggle" onclick="toggleMenu()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+    <div class="navbar-menu" id="navMenu">
+      <a href="/admin">安装包管理</a>
+      <a href="/dashboard">仪表盘</a>
+      <a href="/admin/ip" class="active">IP控制</a>
+      <a href="/profile">个人资料</a>
+    </div>
+    <div class="navbar-user" id="navUser">
+      <div class="navbar-user-info">
+        <span class="avatar" th:text="${#strings.substring(username, 0, 1).toUpperCase()}">A</span>
+        <span th:text="${username}">admin</span>
+      </div>
+      <a href="/logout" class="btn-logout">退出登录</a>
+    </div>
+  </div>
+</nav>
+
+<div id="app" class="container">
+    <div class="page-header">
+        <h1>IP控制管理</h1>
+        <p>管理IP封禁、白名单、黑名单和访问限制</p>
+    </div>
+    
+    <!-- 统计卡片 -->
+    <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+            <h4>当前封禁数</h4>
+            <div class="value">{{ bans.length }}</div>
+        </div>
+        <div class="stat-card pink">
+            <h4>白名单数</h4>
+            <div class="value">{{ whitelist.length }}</div>
+        </div>
+        <div class="stat-card blue">
+            <h4>黑名单数</h4>
+            <div class="value">{{ blacklist.length }}</div>
+        </div>
+    </div>
+
+    <!-- IP控制路径配置 -->
+    <div class="card" style="margin-bottom:24px;">
+        <div class="card-header">
+            <h3>IP控制路径配置</h3>
+        </div>
+        <div class="card-body">
+            <p style="color:var(--secondary);font-size:13px;margin-bottom:16px;">配置需要应用IP封禁和限流的路径。如果未配置任何路径，默认只对 /d/ 路径生效。</p>
+            <div class="form-row" style="margin-bottom:12px;">
+                <input type="text" v-model="pathForm.path" class="form-control" placeholder="路径（如：/d/、/api/download/）" style="flex:1;" />
+        </div>
+        <div class="form-group">
+            <textarea v-model="pathForm.description" placeholder="路径说明" rows="2"></textarea>
+        </div>
+        <button class="btn" @click="addPath">添加路径</button>
+        <table style="margin-top:16px;">
+            <thead>
+                <tr>
+                    <th>路径</th>
+                    <th>说明</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="p in controlPaths" :key="p.id">
+                    <td>{{ p.path }}</td>
+                    <td>{{ p.description || '-' }}</td>
+                    <td>
+                        <span class="chip" :class="p.enabled ? 'on' : 'off'">
+                            {{ p.enabled ? '启用' : '禁用' }}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn" style="padding:6px 12px;font-size:12px;margin-right:4px;" 
+                                @click="togglePath(p.id, !p.enabled)">
+                            {{ p.enabled ? '禁用' : '启用' }}
+                        </button>
+                        <button class="btn danger" style="padding:6px 12px;font-size:12px;" 
+                                @click="removePath(p.id)">删除</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+        <h3>限制配置</h3>
+        <div class="two-col" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+            <div class="form-group">
+                <label>每分钟访问次数限制</label>
+                <input type="number" v-model.number="config.perMinuteLimit" min="1" />
+            </div>
+            <div class="form-group">
+                <label>并发连接数限制</label>
+                <input type="number" v-model.number="config.concurrentLimit" min="1" />
+            </div>
+            <div class="form-group">
+                <label>下载速率限制 (KB/s)</label>
+                <input type="number" v-model.number="config.downloadRateLimitKB" min="1" />
+            </div>
+            <div class="form-group">
+                <label>自动封禁时长 (分钟)</label>
+                <input type="number" v-model.number="config.autoBanDurationMinutes" min="1" />
+            </div>
+            <div class="form-group" style="grid-column:span 2;">
+                <label style="display:flex;align-items:center;cursor:pointer;">
+                    <input type="checkbox" v-model="config.autoBanOnExceed" style="width:auto;margin-right:8px;cursor:pointer;" />
+                    <span>超过限制时自动封禁</span>
+                </label>
+            </div>
+        </div>
+        <button class="btn" @click="saveConfig" style="margin-top:12px;">保存配置</button>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>封禁管理</h3>
+            <div class="row">
+                <input type="text" v-model="banForm.ip" placeholder="IP地址" style="flex:1;" />
+                <input type="number" v-model="banForm.duration" placeholder="封禁时长(分钟，留空永久)" style="width:180px;" />
+            </div>
+            <div class="form-group">
+                <textarea v-model="banForm.description" placeholder="封禁原因" rows="2"></textarea>
+            </div>
+            <button class="btn" @click="addBan">封禁IP</button>
+            <table style="margin-top:16px;">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>类型</th>
+                        <th>原因</th>
+                        <th>到期时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="ban in bans" :key="ban.id">
+                        <td>{{ ban.ip }}</td>
+                        <td><span class="chip" :class="ban.banType === 'MANUAL' ? 'manual' : 'auto'">{{ ban.banType === 'MANUAL' ? '手动' : '自动' }}</span></td>
+                        <td>{{ ban.description || ban.reason }}</td>
+                        <td>{{ formatDate(ban.expiresAt) || '永久' }}</td>
+                        <td><button class="btn danger" style="padding:6px 12px;font-size:12px;" @click="unban(ban.ip)">解封</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>白名单管理</h3>
+            <div class="row">
+                <input type="text" v-model="whitelistForm.ip" placeholder="IP地址" style="flex:1;" />
+            </div>
+            <div class="form-group">
+                <textarea v-model="whitelistForm.description" placeholder="备注" rows="2"></textarea>
+            </div>
+            <button class="btn" @click="addWhitelist">添加白名单</button>
+            <table style="margin-top:16px;">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="wl in whitelist" :key="wl.id">
+                        <td>{{ wl.ip }}</td>
+                        <td>{{ wl.description || '-' }}</td>
+                        <td><button class="btn danger" style="padding:6px 12px;font-size:12px;" @click="removeWhitelist(wl.ip)">删除</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>黑名单管理</h3>
+        <div class="row">
+            <input type="text" v-model="blacklistForm.ip" placeholder="IP地址" style="flex:1;" />
+            <input type="number" v-model="blacklistForm.duration" placeholder="时长(分钟，留空永久)" style="width:180px;" />
+        </div>
+        <div class="form-group">
+            <textarea v-model="blacklistForm.description" placeholder="备注" rows="2"></textarea>
+        </div>
+        <button class="btn" @click="addBlacklist">添加黑名单</button>
+        <table style="margin-top:16px;">
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>备注</th>
+                    <th>到期时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="bl in blacklist" :key="bl.id">
+                    <td>{{ bl.ip }}</td>
+                    <td>{{ bl.description || '-' }}</td>
+                    <td>{{ formatDate(bl.expiresAt) || '永久' }}</td>
+                    <td><button class="btn danger" style="padding:6px 12px;font-size:12px;" @click="removeBlacklist(bl.ip)">删除</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>IP统计查询</h3>
+        <div class="row">
+            <input type="text" v-model="statQueryIp" placeholder="输入IP地址查询统计信息" style="flex:1;" />
+            <select v-model="statTimeRange" style="width:150px;">
+                <option value="1h">最近1小时</option>
+                <option value="24h">最近24小时</option>
+                <option value="7d">最近7天</option>
+                <option value="30d">最近30天</option>
+            </select>
+            <button class="btn" @click="queryIpStats">查询IP统计</button>
+            <button class="btn secondary" @click="queryGlobalStats">查询全局统计</button>
+        </div>
+        <div v-if="ipStatData" style="margin-top:16px;padding:16px;background:#f9fafb;border-radius:8px;">
+            <h4 style="margin:0 0 12px;">IP统计结果</h4>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;">
+                <div>
+                    <div class="muted">总请求数</div>
+                    <div style="font-size:20px;font-weight:600;">{{ ipStatData.totalRequests || 0 }}</div>
+                </div>
+                <div>
+                    <div class="muted">总下载流量</div>
+                    <div style="font-size:20px;font-weight:600;">{{ formatBytes(ipStatData.totalBytes || 0) }}</div>
+                </div>
+                <div>
+                    <div class="muted">时间范围</div>
+                    <div style="font-size:14px;">{{ statTimeRange === '1h' ? '最近1小时' : statTimeRange === '24h' ? '最近24小时' : statTimeRange === '7d' ? '最近7天' : '最近30天' }}</div>
+                </div>
+            </div>
+            <div v-if="ipStatData.hourlyDistribution && ipStatData.hourlyDistribution.length > 0">
+                <h5 style="margin:12px 0 8px;">按小时分布</h5>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>请求数</th>
+                            <th>下载流量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in ipStatData.hourlyDistribution" :key="item.timeSlot">
+                            <td>{{ item.timeSlot }}</td>
+                            <td>{{ item.requests }}</td>
+                            <td>{{ formatBytes(item.bytes) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-if="ipStatData.minuteDistribution && ipStatData.minuteDistribution.length > 0">
+                <h5 style="margin:12px 0 8px;">按分钟分布</h5>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>请求数</th>
+                            <th>下载流量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in ipStatData.minuteDistribution" :key="item.timeSlot">
+                            <td>{{ item.timeSlot }}</td>
+                            <td>{{ item.requests }}</td>
+                            <td>{{ formatBytes(item.bytes) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div v-if="globalStatData" style="margin-top:16px;padding:16px;background:#f0f9ff;border-radius:8px;">
+            <h4 style="margin:0 0 12px;">全局统计结果</h4>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;">
+                <div>
+                    <div class="muted">总请求数</div>
+                    <div style="font-size:20px;font-weight:600;">{{ globalStatData.totalRequests || 0 }}</div>
+                </div>
+                <div>
+                    <div class="muted">总下载流量</div>
+                    <div style="font-size:20px;font-weight:600;">{{ formatBytes(globalStatData.totalBytes || 0) }}</div>
+                </div>
+                <div>
+                    <div class="muted">时间范围</div>
+                    <div style="font-size:14px;">{{ statTimeRange === '1h' ? '最近1小时' : statTimeRange === '24h' ? '最近24小时' : statTimeRange === '7d' ? '最近7天' : '最近30天' }}</div>
+                </div>
+            </div>
+            <div v-if="globalStatData.timeDistribution && globalStatData.timeDistribution.length > 0">
+                <h5 style="margin:12px 0 8px;">时间段分布</h5>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>请求数</th>
+                            <th>下载流量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in globalStatData.timeDistribution" :key="item.timeSlot">
+                            <td>{{ item.timeSlot }}</td>
+                            <td>{{ item.requests }}</td>
+                            <td>{{ formatBytes(item.bytes) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-if="globalStatData.topIps && globalStatData.topIps.length > 0" style="margin-top:16px;">
+                <h5 style="margin:12px 0 8px;">Top IPs (按请求数)</h5>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>IP地址</th>
+                            <th>请求数</th>
+                            <th>下载流量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in globalStatData.topIps" :key="item.ip">
+                            <td>{{ item.ip }}</td>
+                            <td>{{ item.requests }}</td>
+                            <td>{{ formatBytes(item.bytes) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>IP查询</h3>
+        <div class="row">
+            <input type="text" v-model="queryIp" placeholder="输入IP地址查询统计信息" style="flex:1;" />
+            <button class="btn" @click="queryStats">查询</button>
+        </div>
+        <div v-if="ipStats" style="margin-top:16px;padding:16px;background:#f9fafb;border-radius:8px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+                <div>
+                    <div class="muted">最近1分钟访问次数</div>
+                    <div style="font-size:20px;font-weight:600;">{{ ipStats.accessCountLastMinute }}</div>
+                </div>
+                <div>
+                    <div class="muted">最近1分钟传输字节</div>
+                    <div style="font-size:20px;font-weight:600;">{{ formatBytes(ipStats.bytesTransferredLastMinute) }}</div>
+                </div>
+                <div>
+                    <div class="muted">当前并发连接</div>
+                    <div style="font-size:20px;font-weight:600;">{{ ipStats.concurrentConnections }}</div>
+                </div>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px;">
+                <span class="chip" :class="ipStats.isWhitelisted ? 'on' : 'off'">白名单: {{ ipStats.isWhitelisted ? '是' : '否' }}</span>
+                <span class="chip" :class="ipStats.isBlacklisted ? 'off' : 'on'">黑名单: {{ ipStats.isBlacklisted ? '是' : '否' }}</span>
+                <span class="chip" :class="ipStats.isBanned ? 'off' : 'on'">封禁: {{ ipStats.isBanned ? '是' : '否' }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        bans: [],
+        whitelist: [],
+        blacklist: [],
+        banForm: { ip: '', duration: null, description: '' },
+        whitelistForm: { ip: '', description: '' },
+        blacklistForm: { ip: '', duration: null, description: '' },
+        queryIp: '',
+        ipStats: null,
+        statQueryIp: '',
+        statTimeRange: '24h',
+        ipStatData: null,
+        globalStatData: null,
+        controlPaths: [],
+        pathForm: { path: '', description: '' },
+        config: {
+            perMinuteLimit: 60,
+            concurrentLimit: 10,
+            downloadRateLimitKB: 1024,
+            autoBanOnExceed: true,
+            autoBanDurationMinutes: 60
+        }
+    },
+    mounted() {
+        this.loadBans();
+        this.loadWhitelist();
+        this.loadBlacklist();
+        this.loadConfig();
+        this.loadPaths();
+        setInterval(() => {
+            this.loadBans();
+            this.loadWhitelist();
+            this.loadBlacklist();
+            this.loadPaths();
+        }, 5000);
+    },
+    methods: {
+        async loadBans() {
+            try {
+                const res = await fetch('/admin/ip/bans');
+                this.bans = await res.json();
+            } catch (e) { console.error(e); }
+        },
+        async loadWhitelist() {
+            try {
+                const res = await fetch('/admin/ip/whitelist');
+                this.whitelist = await res.json();
+            } catch (e) { console.error(e); }
+        },
+        async loadBlacklist() {
+            try {
+                const res = await fetch('/admin/ip/blacklist');
+                this.blacklist = await res.json();
+            } catch (e) { console.error(e); }
+        },
+        async loadPaths() {
+            try {
+                const res = await fetch('/admin/ip/paths');
+                this.controlPaths = await res.json();
+            } catch (e) { console.error(e); }
+        },
+        async addPath() {
+            if (!this.pathForm.path) { alert('请输入路径'); return; }
+            try {
+                const res = await fetch('/admin/ip/paths/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.pathForm)
+                });
+                if (res.ok) {
+                    this.pathForm = { path: '', description: '' };
+                    this.loadPaths();
+                    alert('添加成功');
+                } else {
+                    alert('添加失败');
+                }
+            } catch (e) { 
+                console.error(e); 
+                alert('添加失败');
+            }
+        },
+        async removePath(id) {
+            if (!confirm('确定删除此路径吗？')) return;
+            try {
+                const res = await fetch('/admin/ip/paths/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                if (res.ok) {
+                    this.loadPaths();
+                    alert('删除成功');
+                }
+            } catch (e) { console.error(e); }
+        },
+        async togglePath(id, enabled) {
+            try {
+                const res = await fetch('/admin/ip/paths/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, enabled })
+                });
+                if (res.ok) {
+                    this.loadPaths();
+                }
+            } catch (e) { console.error(e); }
+        },
+        async loadConfig() {
+            try {
+                const res = await fetch('/admin/ip/config');
+                const configs = await res.json();
+                if (configs.perMinuteLimit) this.config.perMinuteLimit = parseInt(configs.perMinuteLimit) || 60;
+                if (configs.concurrentLimit) this.config.concurrentLimit = parseInt(configs.concurrentLimit) || 10;
+                if (configs.downloadRateLimitKB) this.config.downloadRateLimitKB = parseInt(configs.downloadRateLimitKB) || 1024;
+                if (configs.autoBanOnExceed !== undefined) {
+                    this.config.autoBanOnExceed = configs.autoBanOnExceed === 'true' || configs.autoBanOnExceed === true;
+                }
+                if (configs.autoBanDurationMinutes) this.config.autoBanDurationMinutes = parseInt(configs.autoBanDurationMinutes) || 60;
+            } catch (e) { console.error(e); }
+        },
+        async saveConfig() {
+            try {
+                const configs = [
+                    { key: 'perMinuteLimit', value: String(this.config.perMinuteLimit), description: '每分钟访问次数限制' },
+                    { key: 'concurrentLimit', value: String(this.config.concurrentLimit), description: '并发连接数限制' },
+                    { key: 'downloadRateLimitKB', value: String(this.config.downloadRateLimitKB), description: '下载速率限制（KB/s）' },
+                    { key: 'autoBanOnExceed', value: String(this.config.autoBanOnExceed), description: '超过限制是否自动封禁' },
+                    { key: 'autoBanDurationMinutes', value: String(this.config.autoBanDurationMinutes), description: '自动封禁时长（分钟）' }
+                ];
+                for (const cfg of configs) {
+                    await fetch('/admin/ip/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(cfg)
+                    });
+                }
+                alert('配置保存成功');
+            } catch (e) {
+                console.error(e);
+                alert('配置保存失败');
+            }
+        },
+        async addBan() {
+            if (!this.banForm.ip) { alert('请输入IP地址'); return; }
+            try {
+                const res = await fetch('/admin/ip/ban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ip: this.banForm.ip,
+                        duration: this.banForm.duration || null,
+                        description: this.banForm.description
+                    })
+                });
+                if (res.ok) {
+                    this.banForm = { ip: '', duration: null, description: '' };
+                    this.loadBans();
+                    alert('封禁成功');
+                } else {
+                    alert('封禁失败');
+                }
+            } catch (e) { console.error(e); alert('封禁失败'); }
+        },
+        async unban(ip) {
+            if (!confirm('确定解封 ' + ip + ' 吗？')) return;
+            try {
+                const res = await fetch('/admin/ip/unban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip })
+                });
+                if (res.ok) {
+                    this.loadBans();
+                    alert('解封成功');
+                }
+            } catch (e) { console.error(e); }
+        },
+        async addWhitelist() {
+            if (!this.whitelistForm.ip) { alert('请输入IP地址'); return; }
+            try {
+                const res = await fetch('/admin/ip/whitelist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.whitelistForm)
+                });
+                if (res.ok) {
+                    this.whitelistForm = { ip: '', description: '' };
+                    this.loadWhitelist();
+                    alert('添加成功');
+                }
+            } catch (e) { console.error(e); }
+        },
+        async removeWhitelist(ip) {
+            if (!confirm('确定删除 ' + ip + ' 吗？')) return;
+            try {
+                const res = await fetch('/admin/ip/whitelist/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip })
+                });
+                if (res.ok) {
+                    this.loadWhitelist();
+                }
+            } catch (e) { console.error(e); }
+        },
+        async addBlacklist() {
+            if (!this.blacklistForm.ip) { alert('请输入IP地址'); return; }
+            try {
+                const res = await fetch('/admin/ip/blacklist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ip: this.blacklistForm.ip,
+                        duration: this.blacklistForm.duration || null,
+                        description: this.blacklistForm.description
+                    })
+                });
+                if (res.ok) {
+                    this.blacklistForm = { ip: '', duration: null, description: '' };
+                    this.loadBlacklist();
+                    alert('添加成功');
+                }
+            } catch (e) { console.error(e); }
+        },
+        async removeBlacklist(ip) {
+            if (!confirm('确定删除 ' + ip + ' 吗？')) return;
+            try {
+                const res = await fetch('/admin/ip/blacklist/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip })
+                });
+                if (res.ok) {
+                    this.loadBlacklist();
+                }
+            } catch (e) { console.error(e); }
+        },
+        async queryStats() {
+            if (!this.queryIp) { alert('请输入IP地址'); return; }
+            try {
+                const res = await fetch('/admin/ip/stats/' + this.queryIp);
+                this.ipStats = await res.json();
+            } catch (e) { console.error(e); }
+        },
+        async queryIpStats() {
+            if (!this.statQueryIp) { alert('请输入IP地址'); return; }
+            try {
+                const res = await fetch('/admin/ip/stat/ip/' + this.statQueryIp + '?range=' + this.statTimeRange);
+                this.ipStatData = await res.json();
+                this.globalStatData = null;
+            } catch (e) { 
+                console.error(e); 
+                alert('查询失败');
+            }
+        },
+        async queryGlobalStats() {
+            try {
+                const res = await fetch('/admin/ip/stat/global?range=' + this.statTimeRange);
+                this.globalStatData = await res.json();
+                this.ipStatData = null;
+            } catch (e) { 
+                console.error(e); 
+                alert('查询失败');
+            }
+        },
+        formatDate(dateStr) {
+            if (!dateStr) return null;
+            return new Date(dateStr).toLocaleString('zh-CN');
+        },
+        formatBytes(bytes) {
+            if (!bytes) return '0 B';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+    }
+});
+
+function toggleMenu() {
+    document.getElementById('navMenu').classList.toggle('active');
+    document.getElementById('navUser').classList.toggle('active');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: DownloadManagement
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/downloadmgmt?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+    show-sql: ${JPA_SHOW_SQL:false}
+    generate-ddl: true
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:200MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:200MB}
+
+app:
+  server:
+    id: ${SERVER_ID:server-${random.value}}
+  storage:
+    location: ${APP_STORAGE:uploads}
+  download:
+    rateLimit:
+      perSecond: ${DOWNLOAD_RATE_PER_SECOND:5}
+    refererWhitelist: ${DOWNLOAD_REFERRERS:}
+  ip:
+    rateLimit:
+      perMinute: ${IP_RATE_LIMIT_PER_MINUTE:20}
+    concurrentLimit: ${IP_CONCURRENT_LIMIT:6}
+    downloadRateLimitKB: ${IP_DOWNLOAD_RATE_LIMIT_KB:2048}
+    autoBanOnExceed: ${IP_AUTO_BAN_ON_EXCEED:true}
+    autoBanDurationMinutes: ${IP_AUTO_BAN_DURATION_MINUTES:60}
+    # 可信代理IP列表，多个IP用逗号分隔
+    # 只有来自这些IP的请求才会信任X-Forwarded-For等请求头
+    # 如果为空，则不信任任何转发头，直接使用TCP连接的真实IP（最安全）
+    # 示例: 127.0.0.1,192.168.1.0/24,10.0.0.1
+    trustedProxies: ${IP_TRUSTED_PROXIES:}
+
+logging:
+  level:
+    org.springframework.security: ${LOG_SECURITY_LEVEL:warn}

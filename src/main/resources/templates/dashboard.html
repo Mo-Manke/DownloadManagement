@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>仪表盘 - 安装包管理系统</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    function changeRange(val){ const p=new URLSearchParams(location.search); p.set('range',val); location.search=p.toString(); }
+    function changeUser(sel){ const p=new URLSearchParams(location.search); p.set('user',sel.value); location.search=p.toString(); }
+  </script>
+  <script src="/js/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+<!-- 导航栏 -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/admin" class="navbar-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      APK管理
+    </a>
+    <button class="navbar-toggle" onclick="toggleMenu()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+    <div class="navbar-menu" id="navMenu">
+      <a href="/admin">安装包管理</a>
+      <a href="/dashboard" class="active">仪表盘</a>
+      <a href="/admin/ip">IP控制</a>
+      <a href="/profile">个人资料</a>
+      <span th:if="${isSuper}">
+        <a href="/admin/users">管理员管理</a>
+        <a href="/admin/requests">审批请求</a>
+      </span>
+    </div>
+    <div class="navbar-user" id="navUser">
+      <div class="navbar-user-info">
+        <span class="avatar" th:text="${#strings.substring(username, 0, 1).toUpperCase()}">A</span>
+        <span th:text="${username}">admin</span>
+      </div>
+      <a href="/logout" class="btn-logout">退出登录</a>
+    </div>
+  </div>
+</nav>
+
+<div id="dash" class="container" th:data-total="${total}" th:data-series="${seriesJson}" th:data-range="${range}" th:data-issuper="${isSuper}" th:data-users="${usersJson}" th:data-userid="${userId}">
+  <div class="page-header">
+    <h1>数据仪表盘</h1>
+    <p>查看安装包下载统计数据</p>
+  </div>
+
+  <!-- 统计卡片 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h4>总安装次数</h4>
+      <div class="value" th:text="${total}">0</div>
+    </div>
+    <div class="stat-card green">
+      <h4>时间范围</h4>
+      <div class="value" style="font-size:20px;" th:text="${range == 'week' ? '最近一周' : '最近一月'}">最近一周</div>
+    </div>
+    <div class="stat-card orange">
+      <h4>数据点数</h4>
+      <div class="value">{{ Object.keys(series).length }}</div>
+    </div>
+  </div>
+
+  <!-- 图表卡片 -->
+  <div class="card">
+    <div class="card-header">
+      <h3>安装趋势</h3>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <select class="form-control" style="width:auto;" onchange="changeRange(this.value)">
+          <option value="week" th:selected="${range=='week'}">最近一周</option>
+          <option value="month" th:selected="${range=='month'}">最近一月</option>
+        </select>
+        <div th:if="${isSuper}">
+          <select class="form-control" style="width:auto;" onchange="changeUser(this)">
+            <option th:selected="${userId==null}" value="">全部管理员</option>
+            <option th:each="u: ${users}" th:value="${u.id}" th:text="${u.username}" th:selected="${u.id==userId}"></option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="chart" id="chartContainer"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleMenu() {
+  document.getElementById('navMenu').classList.toggle('active');
+  document.getElementById('navUser').classList.toggle('active');
+}
+
+new Vue({
+  el: '#dash',
+  data(){
+    const el = document.getElementById('dash');
+    const toMap = () => {
+      const raw = (el.getAttribute('data-series') || '{}').replaceAll('&quot;', '"');
+      try { return JSON.parse(raw); } catch(e){ return {}; }
+    };
+    let users = [];
+    try { users = JSON.parse((el.getAttribute('data-users') || '[]').replaceAll('&quot;', '"')); } catch(e) { users = []; }
+    return {
+      total: Number(el.getAttribute('data-total') || '0'),
+      range: el.getAttribute('data-range') || 'week',
+      isSuper: el.getAttribute('data-issuper') === 'true',
+      users: users,
+      userId: el.getAttribute('data-userid') || '',
+      series: toMap()
+    };
+  },
+  methods: {
+    renderChart(){
+      const container = document.getElementById('chartContainer');
+      if (!container || !window.echarts) return;
+      
+      const labels = Object.keys(this.series);
+      const data = Object.values(this.series);
+      
+      const chart = echarts.init(container);
+      chart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          textStyle: { color: '#1e293b' }
+        },
+        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: labels,
+          axisLine: { lineStyle: { color: '#e2e8f0' } },
+          axisLabel: { color: '#64748b', fontSize: 11 }
+        },
+        yAxis: {
+          type: 'value',
+          axisLine: { show: false },
+          splitLine: { lineStyle: { color: '#f1f5f9' } },
+          axisLabel: { color: '#64748b' }
+        },
+        series: [{
+          type: 'bar',
+          data: data,
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#6366f1' },
+              { offset: 1, color: '#8b5cf6' }
+            ]),
+            borderRadius: [4, 4, 0, 0]
+          },
+          barWidth: '60%'
+        }]
+      });
+      
+      window.addEventListener('resize', () => chart.resize());
+    }
+  },
+  mounted(){
+    this.renderChart();
+  }
+});
+</script>
+</body>
+</html>

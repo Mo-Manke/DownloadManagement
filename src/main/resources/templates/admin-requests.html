@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>审批请求 - 安装包管理系统</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<!-- 导航栏 -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/admin" class="navbar-brand">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      APK管理
+    </a>
+    <button class="navbar-toggle" onclick="toggleMenu()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+    <div class="navbar-menu" id="navMenu">
+      <a href="/admin">安装包管理</a>
+      <a href="/dashboard">仪表盘</a>
+      <a href="/admin/ip">IP控制</a>
+      <a href="/profile">个人资料</a>
+      <a href="/admin/users">管理员管理</a>
+      <a href="/admin/requests" class="active">审批请求</a>
+    </div>
+    <div class="navbar-user" id="navUser">
+      <div class="navbar-user-info">
+        <span class="avatar" th:text="${#strings.substring(username, 0, 1).toUpperCase()}">A</span>
+        <span th:text="${username}">admin</span>
+      </div>
+      <a href="/logout" class="btn-logout">退出登录</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container" style="max-width:1000px;">
+  <div class="page-header">
+    <h1>审批请求</h1>
+    <p>处理管理员提交的账号变更请求</p>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>待处理请求</h3>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>类型</th>
+            <th>发起人ID</th>
+            <th>目标用户ID</th>
+            <th>新用户名</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="r : ${requests}">
+            <td style="color:var(--secondary);" th:text="'#' + ${r.id}">#1</td>
+            <td>
+              <span class="badge badge-info" th:text="${r.type.name()=='USERNAME_CHANGE' ? '用户名变更' : '密码重置'}">类型</span>
+            </td>
+            <td th:text="${r.requesterId}">2</td>
+            <td th:text="${r.targetUserId}">2</td>
+            <td style="font-weight:500;" th:text="${r.newUsername ?: '-'}">new</td>
+            <td>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <form th:action="@{'/admin/requests/' + ${r.id} + '/approve'}" method="post" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-success">通过</button>
+                </form>
+                <form th:action="@{'/admin/requests/' + ${r.id} + '/reject'}" method="post" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-danger">驳回</button>
+                </form>
+                <form th:if="${r.type.name()=='PASSWORD_RESET'}" th:action="@{'/admin/requests/' + ${r.id} + '/set-password'}" method="post" style="display:inline-flex;gap:6px;align-items:center;">
+                  <input type="password" name="password" class="form-control" placeholder="新密码" required style="width:120px;" />
+                  <button type="submit" class="btn btn-sm btn-primary">设置密码</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div th:if="${#lists.isEmpty(requests)}" class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p>暂无待处理的请求</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleMenu() {
+  document.getElementById('navMenu').classList.toggle('active');
+  document.getElementById('navUser').classList.toggle('active');
+}
+</script>
+</body>
+</html>
